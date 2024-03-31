@@ -46,7 +46,7 @@ func (b *Bot) Start() error {
 		} else if update.CallbackQuery != nil {
 			err := b.handleCallback(update.CallbackQuery)
 			if err != nil {
-				b.handleError(update.Message.Chat.ID, err)
+				b.handleError(update.CallbackQuery.Message.Chat.ID, err)
 			}
 		}
 	}

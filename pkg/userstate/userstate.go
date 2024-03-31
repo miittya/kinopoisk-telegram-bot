@@ -10,6 +10,7 @@ type UserState struct {
 	awaitingResponse map[int64]bool
 	favoriteMovie    map[int64]kinopoisk.Document
 	pageNum          map[int64]int
+	buttonState      map[int64]bool
 }
 
 func NewUserState() *UserState {
@@ -17,6 +18,7 @@ func NewUserState() *UserState {
 		awaitingResponse: make(map[int64]bool),
 		favoriteMovie:    make(map[int64]kinopoisk.Document),
 		pageNum:          make(map[int64]int),
+		buttonState:      make(map[int64]bool),
 	}
 }
 
@@ -54,4 +56,16 @@ func (us *UserState) GetPageNum(chatID int64) int {
 	us.mu.Lock()
 	defer us.mu.Unlock()
 	return us.pageNum[chatID]
+}
+
+func (us *UserState) SetButtonState(chatID int64, state bool) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+	us.buttonState[chatID] = state
+}
+
+func (us *UserState) GetButtonState(chatID int64) bool {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+	return us.buttonState[chatID]
 }

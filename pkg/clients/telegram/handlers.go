@@ -43,12 +43,20 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) error {
 
 func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) error {
 	switch callback.Data {
-	case "yes":
-		if err := b.handleYesButton(callback.Message); err != nil {
+	case "yes_add":
+		if err := b.handleYesAdd(callback.Message); err != nil {
 			return err
 		}
-	case "no":
-		if err := b.handleNoButton(callback.Message); err != nil {
+	case "no_add":
+		if err := b.handleNoAdd(callback.Message); err != nil {
+			return err
+		}
+	case "yes_confirm":
+		if err := b.handleYesConfirm(callback.Message); err != nil {
+			return err
+		}
+	case "no_confirm":
+		if err := b.handleNoConfirm(callback.Message); err != nil {
 			return err
 		}
 	case "left":

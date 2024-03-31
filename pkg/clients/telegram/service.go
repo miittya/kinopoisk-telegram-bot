@@ -60,6 +60,7 @@ func (b *Bot) saveTempMovies(message *tgbotapi.Message) error {
 func (b *Bot) getAndSendInfo(chatID int64) error {
 	movie, err := b.storage.Get(chatID, storage.TemporaryMovies)
 	if err != nil {
+		b.userState.SetAwaitingResponse(chatID, false)
 		if errors.Is(err, sql.ErrNoRows) {
 			return errEndOfSearch
 		}
@@ -71,7 +72,7 @@ func (b *Bot) getAndSendInfo(chatID int64) error {
 	if err = b.sendInfo(chatID, movie); err != nil {
 		return err
 	}
-	err = b.sendButtons(chatID)
+	err = b.sendButtons(chatID, b.messages.IsTheMovie)
 	if err != nil {
 		return err
 	}
@@ -118,10 +119,18 @@ func (b *Bot) withoutPoster(chatID int64, movie *kinopoisk.Document) error {
 	return nil
 }
 
-func (b *Bot) sendButtons(chatID int64) error {
-	msg := tgbotapi.NewMessage(chatID, b.messages.IsTheMovie)
-	yesButton := tgbotapi.NewInlineKeyboardButtonData("Да", "yes")
-	noButton := tgbotapi.NewInlineKeyboardButtonData("Нет", "no")
+func (b *Bot) sendButtons(chatID int64, message string) error {
+	msg := tgbotapi.NewMessage(chatID, message)
+	var yes, no string
+	if b.userState.GetButtonState(chatID) {
+		yes = "yes_add"
+		no = "no_add"
+	} else {
+		yes = "yes_confirm"
+		no = "no_confirm"
+	}
+	yesButton := tgbotapi.NewInlineKeyboardButtonData("Да", yes)
+	noButton := tgbotapi.NewInlineKeyboardButtonData("Нет", no)
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(yesButton, noButton))
 	msg.ReplyMarkup = keyboard
 
@@ -185,8 +194,9 @@ func (b *Bot) handleRight(message *tgbotapi.Message) error {
 	return nil
 }
 
-func (b *Bot) handleYesButton(message *tgbotapi.Message) error {
+func (b *Bot) handleYesAdd(message *tgbotapi.Message) error {
 	b.userState.SetAwaitingResponse(message.Chat.ID, false)
+	b.userState.SetButtonState(message.Chat.ID, false)
 	if resp, err := b.bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID)); err != nil || !resp.Ok {
 		return err
 	}
@@ -204,13 +214,36 @@ func (b *Bot) handleYesButton(message *tgbotapi.Message) error {
 	return nil
 }
 
-func (b *Bot) handleNoButton(message *tgbotapi.Message) error {
+func (b *Bot) handleNoAdd(message *tgbotapi.Message) error {
+	b.userState.SetAwaitingResponse(message.Chat.ID, false)
+	b.userState.SetButtonState(message.Chat.ID, false)
+	if resp, err := b.bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID)); err != nil || !resp.Ok {
+		return err
+	}
+	if err := b.storage.RemoveAll(message.Chat.ID, storage.TemporaryMovies); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *Bot) handleNoConfirm(message *tgbotapi.Message) error {
 	if resp, err := b.bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID)); err != nil || !resp.Ok {
 		return err
 	}
 	err := b.getAndSendInfo(message.Chat.ID)
 	if err != nil {
 		return fmt.Errorf("cant send a message: %w", err)
+	}
+	return nil
+}
+
+func (b *Bot) handleYesConfirm(message *tgbotapi.Message) error {
+	b.userState.SetButtonState(message.Chat.ID, true)
+	if resp, err := b.bot.Request(tgbotapi.NewDeleteMessage(message.Chat.ID, message.MessageID)); err != nil || !resp.Ok {
+		return err
+	}
+	if err := b.sendButtons(message.Chat.ID, b.messages.WantToSave); err != nil {
+		return err
 	}
 	return nil
 }
