@@ -8,6 +8,12 @@ import (
 	"kinopoisk-telegram-bot/pkg/clients/kinopoisk"
 	"kinopoisk-telegram-bot/pkg/storage"
 	"strconv"
+	"strings"
+)
+
+const (
+	listPrefix   = "list_"
+	deletePrefix = "delete_"
 )
 
 func (b *Bot) handleStartCommand(message *tgbotapi.Message) error {
@@ -36,7 +42,23 @@ func (b *Bot) handleListCommand(message *tgbotapi.Message) error {
 	if movies == nil {
 		return errFavListIsEmpty
 	}
-	err = b.sendFavMovies(message.Chat.ID, movies)
+	err = b.sendFavMovies(message.Chat.ID, movies, listPrefix)
+	if err != nil {
+		return err
+	}
+	b.userState.SetAwaitingResponse(message.Chat.ID, true)
+	return nil
+}
+
+func (b *Bot) handleDeleteCommand(message *tgbotapi.Message) error {
+	movies, err := b.storage.GetAll(message.Chat.ID, storage.FavoriteMovies)
+	if err != nil {
+		return err
+	}
+	if movies == nil {
+		return errFavListIsEmpty
+	}
+	err = b.sendFavMovies(message.Chat.ID, movies, deletePrefix)
 	if err != nil {
 		return err
 	}
@@ -142,17 +164,33 @@ func (b *Bot) sendButtons(chatID int64, message string) error {
 	return nil
 }
 
-func (b *Bot) handleMovieButton(callback *tgbotapi.CallbackQuery) error {
+func (b *Bot) handleMovieButtonListCase(callback *tgbotapi.CallbackQuery) error {
 	if resp, err := b.bot.Request(tgbotapi.NewDeleteMessage(callback.Message.Chat.ID, callback.Message.MessageID)); err != nil || !resp.Ok {
 		return err
 	}
 	b.userState.SetAwaitingResponse(callback.Message.Chat.ID, false)
-	movieID, _ := strconv.Atoi(callback.Data)
+	movieID, _ := strconv.Atoi(strings.TrimPrefix(callback.Data, "list_"))
 	movie, err := b.storage.GetByID(callback.Message.Chat.ID, movieID, storage.FavoriteMovies)
 	if err != nil {
 		return err
 	}
 	if err = b.sendInfo(callback.Message.Chat.ID, movie); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *Bot) handleMovieButtonDeleteCase(callback *tgbotapi.CallbackQuery) error {
+	if resp, err := b.bot.Request(tgbotapi.NewDeleteMessage(callback.Message.Chat.ID, callback.Message.MessageID)); err != nil || !resp.Ok {
+		return err
+	}
+	b.userState.SetAwaitingResponse(callback.Message.Chat.ID, false)
+	movieID, _ := strconv.Atoi(strings.TrimPrefix(callback.Data, "delete_"))
+	if err := b.storage.Remove(callback.Message.Chat.ID, movieID, storage.FavoriteMovies); err != nil {
+		return err
+	}
+	msg := tgbotapi.NewMessage(callback.Message.Chat.ID, b.messages.DeleteSuccessfully)
+	if _, err := b.bot.Send(msg); err != nil {
 		return err
 	}
 	return nil
@@ -186,7 +224,7 @@ func (b *Bot) handleRight(message *tgbotapi.Message) error {
 		return err
 	}
 	b.userState.SetPageNum(message.Chat.ID, pageNum+1)
-	err = b.sendFavMovies(message.Chat.ID, movies)
+	err = b.sendFavMovies(message.Chat.ID, movies, listPrefix)
 	if err != nil {
 		return err
 	}
@@ -248,8 +286,8 @@ func (b *Bot) handleYesConfirm(message *tgbotapi.Message) error {
 	return nil
 }
 
-func (b *Bot) sendFavMovies(chatID int64, movies []kinopoisk.Document) error {
-	rows := b.createRows(chatID, movies)
+func (b *Bot) sendFavMovies(chatID int64, movies []kinopoisk.Document, prefix string) error {
+	rows := b.createRows(chatID, movies, prefix)
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	msg := tgbotapi.NewMessage(chatID, b.messages.YourMovies)
 	msg.ReplyMarkup = keyboard
@@ -260,7 +298,7 @@ func (b *Bot) sendFavMovies(chatID int64, movies []kinopoisk.Document) error {
 	return nil
 }
 
-func (b *Bot) createRows(chatID int64, movies []kinopoisk.Document) [][]tgbotapi.InlineKeyboardButton {
+func (b *Bot) createRows(chatID int64, movies []kinopoisk.Document, prefix string) [][]tgbotapi.InlineKeyboardButton {
 	var rows [][]tgbotapi.InlineKeyboardButton
 	var row []tgbotapi.InlineKeyboardButton
 	currentPage := b.userState.GetPageNum(chatID)
@@ -275,7 +313,8 @@ func (b *Bot) createRows(chatID int64, movies []kinopoisk.Document) [][]tgbotapi
 	for i, movie := range movies[pageBegin:pageEnd] {
 		if movie.Name != "" {
 			emoji := getEmoji(i)
-			newButton := tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("%v \"%v\" %d", emoji, movie.Name, movie.Year), strconv.Itoa(movie.ID))
+			newButton := tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("%v \"%v\" %d", emoji,
+				movie.Name, movie.Year), prefix+strconv.Itoa(movie.ID))
 			row = append(row, newButton)
 			if len(row) == 2 || (i == len(movies)%moviesOnPage-1 && currentPage == numPages-1) {
 				rows = append(rows, row)

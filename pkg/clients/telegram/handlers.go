@@ -2,12 +2,14 @@ package telegram
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"strings"
 )
 
 const (
 	startCmd     = "start"
 	helpCmd      = "help"
 	listCmd      = "list"
+	deleteCmd    = "delete"
 	moviesOnPage = 6
 )
 
@@ -19,6 +21,8 @@ func (b *Bot) handleCommand(message *tgbotapi.Message) error {
 		return b.handleHelpCommand(message)
 	case listCmd:
 		return b.handleListCommand(message)
+	case deleteCmd:
+		return b.handleDeleteCommand(message)
 	default:
 		return b.handleUnknownCommand(message)
 	}
@@ -70,8 +74,14 @@ func (b *Bot) handleCallback(callback *tgbotapi.CallbackQuery) error {
 	case "pagenum":
 		return nil
 	default:
-		if err := b.handleMovieButton(callback); err != nil {
-			return err
+		if strings.HasPrefix(callback.Data, "list_") {
+			if err := b.handleMovieButtonListCase(callback); err != nil {
+				return err
+			}
+		} else if strings.HasPrefix(callback.Data, "delete_") {
+			if err := b.handleMovieButtonDeleteCase(callback); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

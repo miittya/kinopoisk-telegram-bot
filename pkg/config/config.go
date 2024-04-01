@@ -21,15 +21,16 @@ type Messages struct {
 }
 
 type Responses struct {
-	Start           string
-	Help            string
-	UnknownCommand  string `yaml:"unknown_command"`
-	ListIsEmpty     string `yaml:"list_is_empty"`
-	IsTheMovie      string `yaml:"is_the_movie"`
-	WantToSave      string `yaml:"want_to_save"`
-	AddSuccessfully string `yaml:"add_successfully"`
-	YourMovies      string `yaml:"your_movies"`
-	PushTheButton   string `yaml:"push_the_button"`
+	Start              string
+	Help               string
+	UnknownCommand     string `yaml:"unknown_command"`
+	ListIsEmpty        string `yaml:"list_is_empty"`
+	IsTheMovie         string `yaml:"is_the_movie"`
+	WantToSave         string `yaml:"want_to_save"`
+	AddSuccessfully    string `yaml:"add_successfully"`
+	YourMovies         string `yaml:"your_movies"`
+	PushTheButton      string `yaml:"push_the_button"`
+	DeleteSuccessfully string `yaml:"delete_successfully"`
 }
 
 type Errors struct {
